@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dao.CalllogDao;
 import com.dao.UserRepo;
 import com.dao.UserSessionDao;
+import com.enumeration.CallPacketType;
 import com.model.CalllogPOJO;
 import com.model.User;
 import com.model.UserSessions;
@@ -62,12 +64,19 @@ public class CalllogController {
 			teamname = "onetoone";
 			String[] users = conversation_id.split("_");
 			// check the call first
-			Integer callMax = calllogDao.getCallLogMaxByCallId(callid, calldate);
-			Integer max = callMax == null ? 0 : callMax;
+			String callMax = calllogDao.getCallLogMaxByCallId(callid, calldate);
+			Integer max = StringUtils.isAllEmpty(callMax) ? 0 : Integer.parseInt(callMax);
 			if (callStatus.equals("100")) {
 				// callstatus 100 means he is trying to initiate call
 				// we should check if the call is active or not?
 				// if active don't create the call,else create the call
+				User callIntiateUser = userRepo.findByEmail(sessionUser.getEmail());
+				intiatorName = callIntiateUser.getFirstName() + " " + callIntiateUser.getLastName();
+				String roomId = md5(conversation_id);
+				String callFrom = callIntiateUser.getExtension();
+				String roomUrl = "https://www.app.melp.us/conf/" + roomId;
+				String serverUrl = "https://www.app.melp.us/conf";
+				// Since onetoone conversationid remains the same as method conversation_id
 
 				calllogList = calllogDao.getCallLogByCallDataId(callid, calldate, String.valueOf(max));
 				if (calllogList.isEmpty()) {
@@ -77,11 +86,9 @@ public class CalllogController {
 						User user = userRepo.findByExtension(users[n]);
 						if (users[n].equals(sessionUser.getExtension()) && callStatus.equals("100")) {
 							isModerator = true;
-							intiatorName = user.getFirstName() + " " + user.getLastName();
 						}
-
 						Calljitsitoken calljitsitoken = new Calljitsitoken(user.getExtension(),
-								user.getImageUrl() + "?sessionid=" + "12345" + "&isthumb=1",
+								user.getImageUrl() + "?sessionid=" + sessionid + "&isthumb=1",
 								user.getExtension() + "@melp.com", user.getFirstName(), md5(conversation_id), teamname,
 								12 * 60 * 60 * 1000l, "", "", isModerator);
 
@@ -94,6 +101,14 @@ public class CalllogController {
 						callLog.setCalldataid("1");
 						callLog.setInitiatorname(intiatorName);
 						callLog.setUser(users[n]);
+						callLog.setRoomid(roomId);
+						callLog.setRoomurl(roomUrl);
+						callLog.setServerurl(serverUrl);
+						callLog.setCallfrom(callFrom);
+						callLog.setCallpackettype(CallPacketType.ACCEPTED.toString());
+						callLog.setCallto(user.getExtension());
+						callLog.setCalltype("V");
+						callLog.setStartedby(callIntiateUser.getExtension());
 						calllogDao.save(callLog);
 					}
 				} else {
@@ -101,11 +116,53 @@ public class CalllogController {
 					// check whether another call is going or not,
 					// if call is inactive create call else do nothing,but inform client that call
 					// is already going
+					if (!calllogList.isEmpty()) {
+						// Do nothing
+						System.out.println("Call is going on");
+					} else {
+						for (int n = 0; n < users.length; n++) {
+							Boolean isModerator = false;
+							User user = userRepo.findByExtension(users[n]);
+							if (users[n].equals(sessionUser.getExtension()) && callStatus.equals("100")) {
+								isModerator = true;
+								intiatorName = user.getFirstName() + " " + user.getLastName();
+							}
+
+							Calljitsitoken calljitsitoken = new Calljitsitoken(user.getExtension(),
+									user.getImageUrl() + "?sessionid=" + sessionid + "&isthumb=1",
+									user.getExtension() + "@melp.com", user.getFirstName(), md5(conversation_id),
+									teamname, 12 * 60 * 60 * 1000l, "", "", isModerator);
+
+							CalllogPOJO callLog = new CalllogPOJO();
+							String accesstoken = createJWT(calljitsitoken);
+							callLog.setAccesstoken(accesstoken);
+							callLog.setCallstatus(isModerator == true ? "202" : "100");
+							callLog.setCallid(callid);
+							callLog.setCalldate(calldate);
+							callLog.setCalldataid("1");
+							callLog.setInitiatorname(intiatorName);
+							callLog.setUser(users[n]);
+							callLog.setRoomid(roomId);
+							callLog.setRoomurl(roomUrl);
+							callLog.setServerurl(serverUrl);
+							callLog.setCallfrom(callFrom);
+							callLog.setCallpackettype(CallPacketType.ACCEPTED.toString());
+							callLog.setCallto(user.getExtension());
+							callLog.setCalltype("V");
+							callLog.setStartedby(callIntiateUser.getExtension());
+							calllogDao.save(callLog);
+						}
+					}
 				}
 			} else if (!callStatus.equals("100")) {
-				CalllogPOJO callLog = calllogDao.getCallLogByUserId(callid, calldate, String.valueOf(max), "");
-				callLog.setCallstatus(callStatus);
-				calllogDao.save(callLog);
+				CalllogPOJO callLog = calllogDao.getCallLogByUserId(callid, calldate, String.valueOf(max), "167181137");
+				if (callLog == null) {
+					// he got invite via external link so add him in call and also to group
+				} else {
+					callLog.setCallstatus(callStatus);
+					calllogDao.save(callLog);
+				}
+
 			}
 
 		} else if (flag.equals("grp_topic")) {

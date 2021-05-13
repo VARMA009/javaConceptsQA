@@ -41,17 +41,17 @@ public interface CalllogDao extends CrudRepository<CalllogPOJO, String> {
 	List<CalllogPOJO> getCallLogByCallId(@Param("callid") String callid, @Param("calldate") String calldate);
 
 	@Query("Select max(calldataid) from calllog where callid=:callid and calldate=:calldate")
-	Integer getCallLogMaxByCallId(@Param("callid") String callid, @Param("calldate") String calldate);
+	String getCallLogMaxByCallId(@Param("callid") String callid, @Param("calldate") String calldate);
 
-	@Query("Select * from calllog where callid=:callid and calldate=:calldate and calldataid=:callid")
+	@Query("Select * from calllog where callid=:callid and calldate=:calldate and calldataid=:calldataid")
 	List<CalllogPOJO> getCallLogByCallDataId(@Param("callid") String callid, @Param("calldate") String calldate,
 			@Param("calldataid") String calldataid);
 
-	@Query("Select * from calllog where callid=:callid and calldate=:calldate and calldataid=:callid")
+	@Query("Select * from calllog where callid=:callid and calldate=:calldate and calldataid=:calldataid and user=:user")
 	CalllogPOJO getCallLogByUserId(@Param("callid") String callid, @Param("calldate") String calldate,
 			@Param("calldataid") String calldataid, @Param("user") String user);
 
-	@Query("Select * from calllog where callid=:callid and calldate=:calldate and calldataid=:callid and callstatus='200' ALLOW FILTERING")
+	@Query("Select * from calllog where callid=:callid and calldate=:calldate and calldataid=:calldataid and callstatus='202' ALLOW FILTERING")
 	List<CalllogPOJO> getActiveCallLogByCallStatus(@Param("callid") String callid, @Param("calldate") String calldate,
 			@Param("calldataid") String calldataid);
 
